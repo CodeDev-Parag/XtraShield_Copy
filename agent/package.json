@@ -1,0 +1,25 @@
+{
+  "name": "xtrasheild-agent",
+  "version": "1.0.0",
+  "description": "XtraShield local security scanner CLI agent",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "xtrasheild-scan": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "axios": "^1.18.1",
+    "chalk": "^5.6.2",
+    "commander": "^15.0.0",
+    "ora": "^9.4.1",
+    "systeminformation": "^5.31.11"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.1",
+    "typescript": "^6.0.3"
+  }
+}
