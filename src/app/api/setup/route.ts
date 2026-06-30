@@ -4,11 +4,11 @@ import { db } from "@/lib/db";
 export async function POST() {
   try {
     // Check if tables already exist
-    const tables = await db.$executeRawUnsafe`
-      SELECT name FROM sqlite_master WHERE type='table' AND name='User'
-    `;
+    const tables = await db.$queryRawUnsafe<{name: string}[]>(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='User'"
+    );
 
-    if (tables > 0) {
+    if (tables.length > 0) {
       return NextResponse.json({ message: "Database already initialized." });
     }
 
