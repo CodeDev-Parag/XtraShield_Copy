@@ -10,8 +10,8 @@ function createPrismaClient() {
 
   if (tursoUrl && tursoToken) {
     // eslint-disable-next-line no-eval
-    const { PrismaLibSQL } = eval('require')('@prisma/adapter-libsql');
-    const adapter = new PrismaLibSQL({ url: tursoUrl, authToken: tursoToken });
+    const { PrismaLibSql } = eval('require')('@prisma/adapter-libsql');
+    const adapter = new PrismaLibSql({ url: tursoUrl, authToken: tursoToken });
     return new PrismaClient({ adapter });
   }
 
