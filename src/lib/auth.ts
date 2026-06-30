@@ -55,7 +55,4 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
-  experimental: {
-    enableWebAuthn: false,
-  },
 });
