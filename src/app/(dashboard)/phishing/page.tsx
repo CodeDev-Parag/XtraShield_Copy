@@ -2,8 +2,7 @@
 
 import React, { useState } from 'react';
 import { useSecurityStore } from '@/store/securityStore';
-import { usePersistedStore } from '@/store/usePersistedStore';
-import { 
+import {
   ShieldAlert, 
   ShieldCheck, 
   Search, 
@@ -35,12 +34,6 @@ interface PhishResult {
 export default function PhishingCheckerPage() {
   const addScan = useSecurityStore((state) => state.addScan);
 
-  const apiKeys = usePersistedStore(
-    useSecurityStore,
-    (state) => state.apiKeys,
-    { hibp: '', virustotal: '' }
-  );
-
   const [urlInput, setUrlInput] = useState('');
   const [isChecking, setIsChecking] = useState(false);
   const [result, setResult] = useState<PhishResult | null>(null);
@@ -55,12 +48,10 @@ export default function PhishingCheckerPage() {
     setResult(null);
 
     try {
-      const headers: HeadersInit = {};
-      if (apiKeys?.virustotal) {
-        headers['x-virustotal-api-key'] = apiKeys.virustotal;
-      }
-      const response = await fetch(`/api/phishing/check?url=${encodeURIComponent(urlInput.trim())}`, {
-        headers
+      const response = await fetch('/api/proxy/phishing/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: urlInput.trim() })
       });
       if (!response.ok) {
         throw new Error('Failed to query URL threat lookup API.');
@@ -97,7 +88,7 @@ export default function PhishingCheckerPage() {
         
         </h1>
         <p className="mt-1 text-sm text-[#4B5563] font-mono">
-          Analyze suspicious links, domains, or IP hostnames against VirusTotal threat directories to detect fraud, malware, or phishing campaigns.
+          Analyze suspicious links, domains, or IP hostnames against global threat intelligence databases to detect fraud, malware, or phishing campaigns.
         </p>
       </div>
 
@@ -265,8 +256,8 @@ export default function PhishingCheckerPage() {
           <div className="bg-white border border-black p-6 flex items-start space-x-3 text-xs hover:shadow-[4px_4px_0px_rgba(0,0,0,1)] transition-shadow duration-100">
             <HelpCircle className="w-5 h-5 text-[#0A0A0A] flex-shrink-0 mt-0.5" />
             <div className="text-[#4B5563] font-mono">
-              <strong className="block text-[#0A0A0A] mb-1">$ WHAT IS VIRUSTOTAL?</strong>
-              VirusTotal aggregates over 70 antivirus scanners and URL/domain blacklisting services to inspect items and discover malicious links.
+              <strong className="block text-[#0A0A0A] mb-1">$ HOW URL SCANNING WORKS</strong>
+              XtraShield cross-references URLs against multiple threat intelligence engines and blacklisting services to detect malicious links, phishing pages, and malware distribution sites.
             </div>
           </div>
         </div>

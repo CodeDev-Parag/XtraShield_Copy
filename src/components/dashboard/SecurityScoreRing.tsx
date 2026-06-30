@@ -24,16 +24,20 @@ export default function SecurityScoreRing({
     const end = Math.min(100, Math.max(0, score));
     if (end === 0) return;
     
-    const duration = 1.5;
-    const incrementTime = Math.abs(Math.floor(duration * 1000 / end));
+    const duration = 1500;
+    const stepTime = 15;
+    const totalSteps = Math.ceil(duration / stepTime);
+    const increment = end / totalSteps;
     
     const timer = setInterval(() => {
-      start += 1;
-      setAnimatedScore(start);
+      start += increment;
       if (start >= end) {
+        setAnimatedScore(end);
         clearInterval(timer);
+      } else {
+        setAnimatedScore(Math.floor(start));
       }
-    }, incrementTime);
+    }, stepTime);
 
     return () => clearInterval(timer);
   }, [score]);

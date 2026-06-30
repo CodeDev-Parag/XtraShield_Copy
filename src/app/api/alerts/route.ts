@@ -5,7 +5,6 @@ import { db } from "@/lib/db";
 export async function GET() {
   try {
     const session = await auth();
-    
     if (!session?.user?.id) {
       return NextResponse.json(
         { error: "Unauthorized" },
@@ -16,7 +15,7 @@ export async function GET() {
     const alerts = await db.alert.findMany({
       where: { userId: session.user.id },
       orderBy: { createdAt: "desc" },
-      take: 50 // Limit to latest 50 alerts
+      take: 50,
     });
 
     return NextResponse.json({ alerts });

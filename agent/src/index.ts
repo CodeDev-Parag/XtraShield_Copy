@@ -6,12 +6,14 @@ import si from 'systeminformation';
 import { execSync } from 'child_process';
 import axios from 'axios';
 
+const DEFAULT_API_URL = process.env.XTRASHIELD_API_URL || 'http://localhost:3000';
+
 const program = new Command();
 program
-  .name('xtrasheild-scan')
+  .name('xtrashield-scan')
   .description('XtraShield local system security scanner')
-  .requiredOption('--key <apiKey>', 'Your XtraShield API key')
-  .option('--api-url <url>', 'API endpoint', 'http://localhost:3000/api/scan/upload')
+  .requiredOption('--key <apiKey>', 'Your XtraShield API key (xtra_...)')
+  .option('--api-url <url>', 'XtraShield server URL', DEFAULT_API_URL)
   .parse();
 
 const opts = program.opts();
@@ -264,16 +266,23 @@ async function calculateScore(data: any): Promise<number> {
 }
 
 async function main() {
-  console.log(chalk.cyan('\n  🛡️  XtraShield Security Agent\n'));
+  const serverUrl = opts.apiUrl.replace(/\/api\/scan\/upload\/?$/, '');
+  
+  console.log(chalk.cyan('\n  \u{1F6E1}\uFE0F  XtraShield Security Agent v1.0.0\n'));
+  console.log(chalk.gray(`  Server:  ${serverUrl}`));
+  console.log(chalk.gray(`  Key:     ${opts.key.substring(0, 12)}...${opts.key.slice(-4)}`));
+  console.log('');
+  
   const spinner = ora('Collecting system information...').start();
   
   try {
     const data = await collectSystemInfo();
     spinner.text = 'Calculating local security score...';
     const score = await calculateScore(data);
-    spinner.text = 'Uploading scan results...';
+    spinner.text = 'Uploading scan results to XtraShield...';
     
-    await axios.post(opts.apiUrl, {
+    const uploadUrl = `${serverUrl}/api/scan/upload`;
+    const response = await axios.post(uploadUrl, {
       ...data,
       overallScore: score,
       agentVersion: '1.0.0',
@@ -281,17 +290,35 @@ async function main() {
       headers: { 
         'Authorization': `Bearer ${opts.key}`, 
         'Content-Type': 'application/json' 
-      }
+      },
+      timeout: 30000,
     });
     
-    spinner.succeed(chalk.green('Scan complete!'));
-    console.log(chalk.white(`\n  Security Score: ${score >= 80 ? chalk.green(score) : score >= 40 ? chalk.yellow(score) : chalk.red(score)}/100`));
-    console.log(chalk.white(`  Open Ports: ${data.openPorts.length}`));
-    console.log(chalk.white(`  Permission Issues: ${data.permissionIssues.length}`));
-    console.log(chalk.cyan(`\n  View full report: ${opts.apiUrl.replace('/api/scan/upload', '')}/scanner\n`));
+    spinner.succeed(chalk.green('Scan uploaded successfully!'));
+    
+    console.log('');
+    console.log(chalk.bold('  Results:'));
+    console.log(`    Score:      ${score >= 80 ? chalk.green(score) : score >= 40 ? chalk.yellow(score) : chalk.red(score)}/100`);
+    console.log(`    Open Ports: ${chalk.white(data.openPorts.length)}`);
+    console.log(`    Processes:  ${chalk.white(data.runningProcesses.length)} (top by CPU)`);
+    console.log(`    Software:   ${chalk.white(data.installedSoftware.length)} packages`);
+    console.log(`    Perm Issues:${chalk.white(' ' + data.permissionIssues.length)}`);
+    
+    if (response.data.alertsCreated > 0) {
+      console.log(chalk.red(`\n    \u26A0 ${response.data.alertsCreated} alert(s) generated`));
+    }
+    
+    console.log(chalk.cyan(`\n  View report: ${serverUrl}/scanner\n`));
   } catch (err: any) {
     const errorMsg = err.response?.data?.error || err.message || 'Unknown error';
     spinner.fail(chalk.red('Scan failed: ' + errorMsg));
+    
+    if (err.response?.status === 401) {
+      console.log(chalk.yellow('\n  Hint: Make sure your API key is valid. Generate one at /scanner in the dashboard.\n'));
+    } else if (err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND') {
+      console.log(chalk.yellow(`\n  Hint: Cannot reach server at ${serverUrl}. Is it running?\n`));
+    }
+    
     process.exit(1);
   }
 }

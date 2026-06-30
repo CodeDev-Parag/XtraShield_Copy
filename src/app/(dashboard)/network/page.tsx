@@ -29,13 +29,30 @@ interface IPInfo {
   longitude?: number;
 }
 
-interface PortScanResult {
+interface NetworkPortResult {
   port: number;
   service: string;
-  status: 'open' | 'closed';
+  status: 'open' | 'closed' | 'filtered';
   risk: 'low' | 'medium' | 'high';
   description: string;
 }
+
+interface ApiPortResult {
+  port: number;
+  service: string;
+  status: 'open' | 'closed' | 'filtered';
+  latencyMs: number | null;
+  error?: string;
+}
+
+// Helper to get risk level for a port (mirroring the server-side logic)
+  const getRiskLevel = (port: number): 'low' | 'medium' | 'high' => {
+    const highRisk = new Set([21, 22, 23, 25, 1433, 3306, 3389, 5900]);
+    const mediumRisk = new Set([53, 110, 143, 161, 162, 389, 636, 873, 902, 993, 995, 1080, 1085, 1090, 1099, 1521, 2049, 2100, 2181, 2375, 2376, 2379, 2380, 5000, 5001, 5432, 5984, 6379, 8080, 8081, 8082, 8083, 8084, 8085, 8086, 8087, 8088, 8089, 8090]);
+    if (highRisk.has(port)) return 'high';
+    if (mediumRisk.has(port)) return 'medium';
+    return 'low';
+  };
 
 const COMMON_PORTS = [
   { port: 21, service: 'FTP', risk: 'high', description: 'File Transfer Protocol. Often unencrypted and vulnerable.' },
@@ -62,8 +79,7 @@ export default function NetworkSecurityPage() {
   // Port Scanner States
   const [scanProgress, setScanProgress] = useState(0);
   const [isScanning, setIsScanning] = useState(false);
-  const [scannedPorts, setScannedPorts] = useState<PortScanResult[]>([]);
-  const [currentScanningPort, setCurrentScanningPort] = useState<number | null>(null);
+  const [scannedPorts, setScannedPorts] = useState<NetworkPortResult[]>([]);
 
   // Fetch IP details
   const fetchIpDetails = async () => {
@@ -93,52 +109,65 @@ export default function NetworkSecurityPage() {
     fetchIpDetails();
   }, []);
 
-  // Port scan simulation
+  // Port scan via API
   const startPortScan = async () => {
     if (isScanning) return;
     setIsScanning(true);
     setScanProgress(0);
     setScannedPorts([]);
-    
-    // Simulate checking each port sequentially
-    for (let i = 0; i < COMMON_PORTS.length; i++) {
-      const item = COMMON_PORTS[i];
-      setCurrentScanningPort(item.port);
-      
-      // Delay to simulate network probe latency
-      await new Promise(resolve => setTimeout(resolve, 350));
-      
-      // Determine status - simulated status. Standard HTTP/HTTPS might be open, databases usually closed
-      let status: 'open' | 'closed' = 'closed';
-      if (item.port === 80 || item.port === 443) {
-        status = Math.random() > 0.3 ? 'open' : 'closed'; // Web ports sometimes simulated as open
-      } else {
-        // Database/Admin ports simulated closed (which is secure!)
-        status = Math.random() > 0.95 ? 'open' : 'closed';
+
+    try {
+      // Use the client's public IP from ipData, or fallback to localhost if not available
+      const targetHost = ipData?.ip || '127.0.0.1';
+      const response = await fetch('/api/network/port-scan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ host: targetHost })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Port scan failed: ${response.status}`);
       }
 
-      setScannedPorts(prev => [...prev, {
-        port: item.port,
-        service: item.service,
-        status,
-        risk: item.risk as 'low' | 'medium' | 'high',
-        description: item.description
-      }]);
+      const data = await response.json();
+      const { results, summary } = data as { results: ApiPortResult[]; summary: any };
 
-      setScanProgress(Math.round(((i + 1) / COMMON_PORTS.length) * 100));
+      // Update state with results
+      setScannedPorts(results.map(r => ({
+        port: r.port,
+        service: r.service,
+        status: r.status === 'open' ? 'open' : r.status === 'closed' ? 'closed' : 'filtered',
+        risk: getRiskLevel(r.port), // we'll need to define this function or import from utils
+        description: `${r.service} port ${r.port} is ${r.status}.`
+      })));
+
+      // Simulate progress for UI (since we don't have granular progress from API)
+      // We'll animate the progress bar to 100% over a short duration
+      const progressSteps = 10;
+      for (let i = 1; i <= progressSteps; i++) {
+        await new Promise(resolve => setTimeout(resolve, 50)); // 50ms each step
+        setScanProgress(i * 10);
+      }
+
+      setIsScanning(false);
+
+      // Save scan to store (using the existing addScan from securityStore)
+      const openCount = summary.openPorts;
+      addScan({
+        type: 'network',
+        target: targetHost,
+        status: openCount > 0 ? 'warning' : 'safe',
+        details: `Port scan finished. Scanned ${summary.totalPorts} ports on ${targetHost}, ${openCount} open, ${summary.closedPorts} closed, ${summary.filteredPorts} filtered.`
+      });
+    } catch (err: any) {
+      console.error('Port scan error:', err);
+      setIsScanning(false);
+      setScannedPorts([]);
+      // Optionally show an error to the user
+      // For now, we'll just reset and let the UI show empty results
     }
-
-    setIsScanning(false);
-    setCurrentScanningPort(null);
-
-    // Save scan to store
-    const openCount = scannedPorts.filter(p => p.status === 'open').length;
-    addScan({
-      type: 'network',
-      target: ipData?.ip || 'localhost',
-      status: openCount > 0 ? 'warning' : 'safe',
-      details: `Local port scan finished. Scanned ${COMMON_PORTS.length} ports, ${openCount} found open.`
-    });
   };
 
   return (
@@ -264,7 +293,7 @@ export default function NetworkSecurityPage() {
                 <div className="flex justify-between text-xs">
                   <span className="text-[#4B5563] flex items-center font-mono">
                     <Terminal className="w-3.5 h-3.5 mr-1.5 text-[#0A0A0A]" />
-                    Probing Port {currentScanningPort}...
+                    Scanning ports...
                   </span>
                   <span className="font-mono font-bold text-[#0A0A0A]">{scanProgress}%</span>
                 </div>

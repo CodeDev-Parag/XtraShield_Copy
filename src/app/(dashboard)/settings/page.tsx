@@ -1,68 +1,43 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useSession } from 'next-auth/react';
+import { toast } from 'sonner';
 import { useSecurityStore } from '@/store/securityStore';
-import { usePersistedStore } from '@/store/usePersistedStore';
-import { 
-  Settings, 
-  Key, 
-  Bell, 
-  Sparkles, 
-  CreditCard, 
-  User, 
-  Lock, 
-  Check, 
-  ShieldCheck, 
-  ShieldAlert,
-  Info
+import { useUserSession } from '@/hooks/useUserSession';
+import {
+  Settings,
+  Key,
+  Bell,
+  Sparkles,
+  CreditCard,
+  User,
+  Lock,
+  Check,
+  ShieldCheck,
 } from 'lucide-react';
 
 export default function SettingsPage() {
-  const storePlan = usePersistedStore(
-    useSecurityStore,
-    (state) => state.userPlan,
-    'FREE'
-  );
-  
-  const storeKeys = usePersistedStore(
-    useSecurityStore,
-    (state) => state.apiKeys,
-    { hibp: '', virustotal: '' }
-  );
+  const { update: updateSession } = useSession();
+  const { plan: serverPlan } = useUserSession();
 
-  const storeNotifications = usePersistedStore(
-    useSecurityStore,
-    (state) => state.notifications,
-    { emailAlerts: true, weeklyDigest: false, browserNotifications: true }
-  );
+  // Plan comes from the session (sourced from DB via jwt callback).
+  // Falls back to FREE while session is loading.
+  const currentPlan = serverPlan;
 
-  const { setPlan, updateApiKeys, updateNotifications, addScan } = useSecurityStore();
+  // apiKeys + notifications still live in Zustand for Phase 1. Phase 3 will
+  // move these to a `UserPreferences` table + PATCH /api/user/preferences.
+  const notifications = useSecurityStore((s) => s.notifications);
+  const updateNotifications = useSecurityStore((s) => s.updateNotifications);
+  const addScan = useSecurityStore((s) => s.addScan);
 
-  // Component local states for inputs
-  const [hibpKey, setHibpKey] = useState(storeKeys.hibp);
-  const [vtKey, setVtKey] = useState(storeKeys.virustotal);
+  // Component local states for inputs.
   const [keysSaved, setKeysSaved] = useState(false);
 
-  // Profile mock states
+  // Profile local state — Phase 3 will wire to PATCH /api/user/profile.
   const [profileName, setProfileName] = useState('Secured User');
   const [profileSaved, setProfileSaved] = useState(false);
-
-  const handleSaveKeys = (e: React.FormEvent) => {
-    e.preventDefault();
-    updateApiKeys({
-      hibp: hibpKey.trim(),
-      virustotal: vtKey.trim()
-    });
-    setKeysSaved(true);
-    setTimeout(() => setKeysSaved(false), 2000);
-
-    addScan({
-      type: 'ssl',
-      target: 'API Configuration',
-      status: 'info',
-      details: 'API credentials settings successfully updated.'
-    });
-  };
+  const [busy, setBusy] = useState(false);
 
   const handleProfileSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,24 +45,42 @@ export default function SettingsPage() {
     setTimeout(() => setProfileSaved(false), 2000);
   };
 
-  const handleUpgrade = () => {
-    setPlan('PRO');
-    addScan({
-      type: 'ssl',
-      target: 'Billing System',
-      status: 'safe',
-      details: 'Stripe webhook received: User upgraded to PRO plan successfully.'
-    });
+  /**
+   * Flip plan in DB via /api/user/upgrade.
+   * Phase 6 replaces this with a Stripe Checkout redirect.
+   */
+  const handleUpgrade = async () => {
+    setBusy(true);
+    try {
+      const res = await fetch('/api/user/upgrade', { method: 'POST' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? `Failed to upgrade (${res.status})`);
+      }
+      await updateSession();
+      toast.success('Upgraded to PRO.');
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Failed to upgrade.');
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const handleCancelPlan = () => {
-    setPlan('FREE');
-    addScan({
-      type: 'ssl',
-      target: 'Billing System',
-      status: 'warning',
-      details: 'Subscription downgraded to FREE plan. Dark Web monitors suspended.'
-    });
+  const handleCancelPlan = async () => {
+    setBusy(true);
+    try {
+      const res = await fetch('/api/user/upgrade', { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? `Failed to cancel (${res.status})`);
+      }
+      await updateSession();
+      toast.success('Subscription returned to FREE.');
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Failed to cancel subscription.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -96,7 +89,7 @@ export default function SettingsPage() {
       <div className="border-b border-black pb-6">
         <h1 className="text-3xl font-heading font-extrabold tracking-tighter text-[#0A0A0A] flex items-center gap-3 uppercase">
           <Settings className="w-8 h-8 text-[#0A0A0A]" />
-          &gt; SYSTEM CONFIGURATION
+          {'>'} SYSTEM CONFIGURATION
         </h1>
         <p className="mt-1 text-sm text-[#4B5563] font-mono">
           Manage system notification preferences, configure active API keys, update profile metadata, and check billing subscription details.
@@ -110,71 +103,40 @@ export default function SettingsPage() {
           <div className="bg-white border border-black p-6 rounded-none hover:shadow-[4px_4px_0px_rgba(0,0,0,1)] transition-shadow duration-100">
             <h2 className="text-lg font-heading font-bold text-[#0A0A0A] mb-4 flex items-center gap-2 uppercase tracking-tight">
               <Key className="w-5 h-5 text-[#0A0A0A]" />
-              &gt; DEVELOPER API CREDENTIALS
+              {'>'} DEVELOPER API CREDENTIALS
             </h2>
             <p className="text-xs text-[#4B5563] mb-6 font-mono leading-relaxed">
-              Enter your own Have I Been Pwned or VirusTotal API credentials. If left blank, ExtraShield falls back to realistic simulation sandboxes.
+              Use your XtraShield API key to authenticate with all security scanning endpoints. Your key is generated automatically on account creation and can be found in your dashboard.
             </p>
-            
-            <form onSubmit={handleSaveKeys} className="space-y-4">
-              <div className="space-y-2">
-                <label className="block text-xs font-semibold text-[#4B5563] uppercase tracking-widest font-mono">
-                  Have I Been Pwned API Key
-                </label>
-                <input
-                  type="password"
-                  value={hibpKey}
-                  onChange={(e) => setHibpKey(e.target.value)}
-                  placeholder="Enter HIBP api-key..."
-                  data-testid="input-hibp-key"
-                  className="w-full bg-white border border-black rounded-none py-2.5 px-4 text-xs text-[#0A0A0A] placeholder-[#4B5563] focus:outline-none focus:ring-1 focus:ring-black focus:border-black font-mono"
-                />
-              </div>
 
-              <div className="space-y-2">
-                <label className="block text-xs font-semibold text-[#4B5563] uppercase tracking-widest font-mono">
-                  VirusTotal v3 API Key
+            <div className="space-y-4">
+              <div className="bg-[#F8F9FA] border border-black p-4 rounded-none">
+                <label className="block text-[10px] text-[#4B5563] uppercase tracking-widest font-bold mb-1.5 font-mono">
+                  Your XtraShield API Key
                 </label>
-                <input
-                  type="password"
-                  value={vtKey}
-                  onChange={(e) => setVtKey(e.target.value)}
-                  placeholder="Enter VirusTotal api-key..."
-                  data-testid="input-virustotal-key"
-                  className="w-full bg-white border border-black rounded-none py-2.5 px-4 text-xs text-[#0A0A0A] placeholder-[#4B5563] focus:outline-none focus:ring-1 focus:ring-black focus:border-black font-mono"
-                />
+                <p className="text-xs text-[#0A0A0A] font-mono font-medium break-all">
+                  Use this key in the <code className="bg-white border border-black px-1 py-0.5">Authorization: Bearer xtra_xxxxx</code> header for all API requests.
+                </p>
               </div>
-
-              <button
-                type="submit"
-                data-testid="save-keys-button"
-                className="w-full md:w-auto bg-black text-white hover:bg-[#16A34A] border border-black rounded-none font-heading font-bold py-2.5 px-6 text-xs transition-colors duration-100 flex items-center justify-center cursor-pointer uppercase tracking-widest hover:shadow-[4px_4px_0px_rgba(0,0,0,1)]"
-              >
-                {keysSaved ? (
-                  <>
-                    <Check className="w-4 h-4 mr-2 text-[#16A34A]" />
-                    Keys Configured
-                  </>
-                ) : (
-                  'Save Key Configuration'
-                )}
-              </button>
-            </form>
+              <p className="text-[10px] text-[#4B5563] font-mono leading-relaxed">
+                All external threat intelligence is handled server-side through XtraShield&rsquo;s secured proxy. No third-party API keys are required from your end.
+              </p>
+            </div>
           </div>
 
           {/* Notifications Toggles */}
           <div className="bg-white border border-black p-6 rounded-none hover:shadow-[4px_4px_0px_rgba(0,0,0,1)] transition-shadow duration-100">
             <h2 className="text-lg font-heading font-bold text-[#0A0A0A] mb-4 flex items-center gap-2 uppercase tracking-tight">
               <Bell className="w-5 h-5 text-[#0A0A0A]" />
-              &gt; NOTIFICATION PREFERENCES
+              {'>'} NOTIFICATION PREFERENCES
             </h2>
-            
+
             <div className="space-y-4">
               <label className="flex items-start space-x-3 cursor-pointer select-none">
                 <input
                   type="checkbox"
-                  checked={storeNotifications.emailAlerts}
-                  onChange={() => updateNotifications({ emailAlerts: !storeNotifications.emailAlerts })}
+                  checked={notifications.emailAlerts}
+                  onChange={() => updateNotifications({ emailAlerts: !notifications.emailAlerts })}
                   data-testid="checkbox-email-alerts"
                   className="rounded-none border-black text-black bg-white focus:ring-black w-4.5 h-4.5 mt-0.5 transition-colors duration-100 cursor-pointer"
                 />
@@ -187,8 +149,8 @@ export default function SettingsPage() {
               <label className="flex items-start space-x-3 cursor-pointer select-none pt-4 border-t border-black">
                 <input
                   type="checkbox"
-                  checked={storeNotifications.weeklyDigest}
-                  onChange={() => updateNotifications({ weeklyDigest: !storeNotifications.weeklyDigest })}
+                  checked={notifications.weeklyDigest}
+                  onChange={() => updateNotifications({ weeklyDigest: !notifications.weeklyDigest })}
                   data-testid="checkbox-weekly-digest"
                   className="rounded-none border-black text-black bg-white focus:ring-black w-4.5 h-4.5 mt-0.5 transition-colors duration-100 cursor-pointer"
                 />
@@ -201,8 +163,8 @@ export default function SettingsPage() {
               <label className="flex items-start space-x-3 cursor-pointer select-none pt-4 border-t border-black">
                 <input
                   type="checkbox"
-                  checked={storeNotifications.browserNotifications}
-                  onChange={() => updateNotifications({ browserNotifications: !storeNotifications.browserNotifications })}
+                  checked={notifications.browserNotifications}
+                  onChange={() => updateNotifications({ browserNotifications: !notifications.browserNotifications })}
                   data-testid="checkbox-browser-push"
                   className="rounded-none border-black text-black bg-white focus:ring-black w-4.5 h-4.5 mt-0.5 transition-colors duration-100 cursor-pointer"
                 />
@@ -221,15 +183,17 @@ export default function SettingsPage() {
           <div className="bg-white border border-black p-6 space-y-4 rounded-none hover:shadow-[4px_4px_0px_rgba(0,0,0,1)] transition-shadow duration-100">
             <h2 className="text-sm font-heading font-bold text-[#0A0A0A] flex items-center gap-2 uppercase tracking-tight">
               <CreditCard className="w-4 h-4 text-[#0A0A0A]" />
-              &gt; SUBSCRIPTION STATUS
+              {'>'} SUBSCRIPTION STATUS
             </h2>
-            
-            <div className={`p-4 rounded-none border text-xs flex items-start space-x-3 font-mono ${
-              storePlan === 'PRO' 
-                ? 'bg-[#DCFCE7] border-black text-[#16A34A]'
-                : 'bg-[#F8F9FA] border-black text-[#4B5563]'
-            }`}>
-              {storePlan === 'PRO' ? (
+
+            <div
+              className={`p-4 rounded-none border text-xs flex items-start space-x-3 font-mono ${
+                currentPlan === 'PRO'
+                  ? 'bg-[#DCFCE7] border-black text-[#16A34A]'
+                  : 'bg-[#F8F9FA] border-black text-[#4B5563]'
+              }`}
+            >
+              {currentPlan === 'PRO' ? (
                 <>
                   <ShieldCheck className="w-5 h-5 text-[#16A34A] mt-0.5 flex-shrink-0" />
                   <div>
@@ -249,22 +213,24 @@ export default function SettingsPage() {
             </div>
 
             <div className="pt-2">
-              {storePlan === 'PRO' ? (
+              {currentPlan === 'PRO' ? (
                 <button
                   onClick={handleCancelPlan}
+                  disabled={busy}
                   data-testid="cancel-subscription-button"
-                  className="w-full py-2.5 bg-white hover:bg-[#FEE2E2] hover:text-[#DC2626] border border-black rounded-none text-xs font-heading font-bold transition-colors duration-100 cursor-pointer uppercase tracking-widest"
+                  className="w-full py-2.5 bg-white hover:bg-[#FEE2E2] hover:text-[#DC2626] border border-black rounded-none text-xs font-heading font-bold transition-colors duration-100 cursor-pointer uppercase tracking-widest disabled:opacity-50"
                 >
-                  Cancel PRO Subscription
+                  {busy ? 'PROCESSING…' : 'Cancel PRO Subscription'}
                 </button>
               ) : (
                 <button
                   onClick={handleUpgrade}
+                  disabled={busy}
                   data-testid="upgrade-pro-button"
-                  className="w-full py-3 bg-black hover:bg-[#16A34A] text-white font-heading font-bold text-xs rounded-none transition-colors duration-100 flex items-center justify-center cursor-pointer gap-2 border border-black uppercase tracking-widest hover:shadow-[4px_4px_0px_rgba(0,0,0,1)]"
+                  className="w-full py-3 bg-black hover:bg-[#16A34A] text-white font-heading font-bold text-xs rounded-none transition-colors duration-100 flex items-center justify-center cursor-pointer gap-2 border border-black uppercase tracking-widest hover:shadow-[4px_4px_0px_rgba(0,0,0,1)] disabled:opacity-50"
                 >
                   <Sparkles className="w-4 h-4 text-white" />
-                  Upgrade to PRO ($9/month)
+                  {busy ? 'PROCESSING…' : 'Upgrade to PRO ($9/month)'}
                 </button>
               )}
             </div>
@@ -274,9 +240,9 @@ export default function SettingsPage() {
           <div className="bg-white border border-black p-6 rounded-none hover:shadow-[4px_4px_0px_rgba(0,0,0,1)] transition-shadow duration-100">
             <h2 className="text-sm font-heading font-bold text-[#0A0A0A] mb-4 flex items-center gap-2 uppercase tracking-tight">
               <User className="w-4 h-4 text-[#0A0A0A]" />
-              &gt; SECURED PROFILE
+              {'>'} SECURED PROFILE
             </h2>
-            
+
             <form onSubmit={handleProfileSave} className="space-y-4 text-xs">
               <div className="space-y-2">
                 <label className="block text-[10px] text-[#4B5563] uppercase tracking-widest font-mono font-bold">
@@ -289,18 +255,6 @@ export default function SettingsPage() {
                   data-testid="input-profile-alias"
                   className="w-full bg-white border border-black rounded-none py-2.5 px-4 text-xs text-[#0A0A0A] focus:outline-none focus:ring-1 focus:ring-black focus:border-black font-mono"
                   required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-[10px] text-[#4B5563] uppercase tracking-widest font-mono font-bold">
-                  Secured Email Alias
-                </label>
-                <input
-                  type="email"
-                  value="demo@xtrashield.io"
-                  disabled
-                  className="w-full bg-[#F3F4F6] border border-black rounded-none py-2.5 px-4 text-xs text-[#4B5563] cursor-not-allowed font-mono"
                 />
               </div>
 

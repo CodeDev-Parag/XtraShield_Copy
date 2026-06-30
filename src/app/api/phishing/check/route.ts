@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     }
 
     const customApiKey = req.headers.get('x-virustotal-api-key');
-    const apiKey = customApiKey || process.env.VIRUSTOTAL_API_KEY || process.env.NEXT_PUBLIC_VIRUSTOTAL_API_KEY;
+    const apiKey = customApiKey || process.env.VIRUSTOTAL_API_KEY;
 
     if (!apiKey) {
       // Mock mode
@@ -77,13 +77,13 @@ export async function GET(req: NextRequest) {
         total: 1,
         scanDate: new Date().toISOString(),
         isMock: false,
-        details: 'This URL has not been indexed in the VirusTotal database yet. No immediate threat detected.'
+        details: 'This URL has not been indexed in the threat database yet. No immediate threat detected.'
       });
     }
 
     if (!response.ok) {
       return NextResponse.json(
-        { error: `VirusTotal error status ${response.status}` },
+        { error: `Threat lookup error status ${response.status}` },
         { status: response.status }
       );
     }

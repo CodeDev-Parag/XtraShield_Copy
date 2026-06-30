@@ -1,14 +1,18 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
+import { useSession, signOut } from "next-auth/react";
 import Sidebar from "@/components/shared/Sidebar";
-import { ShieldCheck, Bell, Cpu } from "lucide-react";
+import { ShieldCheck, Bell, Cpu, LogOut } from "lucide-react";
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const { data: session } = useSession();
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-white font-sans select-none text-[#0A0A0A]">
       {/* Sidebar Component */}
@@ -44,12 +48,23 @@ export default function DashboardLayout({
             
             <div className="flex items-center gap-3 pl-3 border-l border-black">
               <div className="hidden sm:flex flex-col text-right">
-                <span className="text-xs font-bold font-mono text-[#0A0A0A] leading-tight uppercase tracking-wider">Admin</span>
-                <span className="text-[10px] font-mono text-[#4B5563]">SEC_OPS_ROOT</span>
+                <span className="text-xs font-bold font-mono text-[#0A0A0A] leading-tight uppercase tracking-wider">
+                  {session?.user?.name || "Admin"}
+                </span>
+                <span className="text-[10px] font-mono text-[#4B5563]">
+                  {session?.user?.email || "SEC_OPS_ROOT"}
+                </span>
               </div>
               <div className="w-9 h-9 bg-black flex items-center justify-center text-sm font-bold text-white font-mono">
-                SO
+                {(session?.user?.name || "SO").slice(0, 2).toUpperCase()}
               </div>
+              <button
+                onClick={() => signOut({ callbackUrl: "/" })}
+                className="w-9 h-9 border border-black bg-white hover:bg-[#FEE2E2] hover:text-[#DC2626] transition-colors duration-100 flex items-center justify-center"
+                title="Sign out"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
             </div>
           </div>
         </header>

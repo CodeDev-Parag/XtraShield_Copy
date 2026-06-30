@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import bcrypt from "bcryptjs"
 import { z } from "zod"
+import { generateApiKey } from "@/lib/api-key"
 
 const registerSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -15,8 +16,10 @@ export async function POST(req: Request) {
     const result = registerSchema.safeParse(body)
     
     if (!result.success) {
+      const firstIssue = result.error?.issues?.[0];
+      const message = firstIssue?.message || "Invalid input data";
       return NextResponse.json(
-        { error: result.error.issues[0].message },
+        { error: message },
         { status: 400 }
       )
     }
@@ -53,7 +56,7 @@ export async function POST(req: Request) {
       await tx.apiKey.create({
         data: {
           userId: newUser.id,
-          // key will default to cuid() automatically
+          key: generateApiKey(),
         },
       })
 

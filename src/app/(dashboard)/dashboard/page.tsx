@@ -61,8 +61,12 @@ export default function DashboardPage() {
 
   const loadDashboardData = async () => {
     try {
-      const scanRes = await fetch("/api/scan/history");
+      const [scanRes, alertRes] = await Promise.all([
+        fetch("/api/scan/history"),
+        fetch("/api/alerts"),
+      ]);
       const scanData = await scanRes.json();
+      const alertData = await alertRes.json();
       if (scanData.scans && scanData.scans.length > 0) {
         const latest = scanData.scans[0];
         if (latest.overallScore !== null) setCurrentScore(latest.overallScore);
@@ -80,8 +84,6 @@ export default function DashboardPage() {
         if (last7.length > 0) setHistoryData(last7);
       }
 
-      const alertRes = await fetch("/api/alerts");
-      const alertData = await alertRes.json();
       if (alertData.alerts) {
         const active = alertData.alerts.filter((a: any) => !a.isRead);
         setActiveAlertsCount(active.length);

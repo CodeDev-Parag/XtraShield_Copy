@@ -24,10 +24,6 @@ interface SecurityState {
   monitoredEmails: MonitoredEmail[];
   recentScans: SecurityScan[];
   userPlan: 'FREE' | 'PRO';
-  apiKeys: {
-    hibp: string;
-    virustotal: string;
-  };
   notifications: {
     emailAlerts: boolean;
     weeklyDigest: boolean;
@@ -40,7 +36,6 @@ interface SecurityState {
   addScan: (scan: Omit<SecurityScan, 'id' | 'timestamp'>) => void;
   clearScans: () => void;
   setPlan: (plan: 'FREE' | 'PRO') => void;
-  updateApiKeys: (keys: Partial<SecurityState['apiKeys']>) => void;
   updateNotifications: (notifications: Partial<SecurityState['notifications']>) => void;
 }
 
@@ -89,10 +84,6 @@ export const useSecurityStore = create<SecurityState>()(
         }
       ],
       userPlan: 'FREE',
-      apiKeys: {
-        hibp: '',
-        virustotal: ''
-      },
       notifications: {
         emailAlerts: true,
         weeklyDigest: false,
@@ -148,9 +139,6 @@ export const useSecurityStore = create<SecurityState>()(
       clearScans: () => set({ recentScans: [] }),
 
       setPlan: (plan) => set({ userPlan: plan }),
-
-      updateApiKeys: (keys) =>
-        set((state) => ({ apiKeys: { ...state.apiKeys, ...keys } })),
 
       updateNotifications: (notifications) =>
         set((state) => ({ notifications: { ...state.notifications, ...notifications } }))

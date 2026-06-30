@@ -63,9 +63,7 @@ model Session {
 model SystemScan {
   id              String      @id @default(cuid())
   userId          String
-  user            User        @relation(fields: [userId], references: [id])
-  
-  // Scan metadata
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   status          ScanStatus  @default(PENDING)
   platform        String      // "linux" | "darwin" | "win32"
   osName          String?
@@ -103,7 +101,7 @@ enum ScanStatus {
 model BreachCheck {
   id          String   @id @default(cuid())
   userId      String
-  user        User     @relation(fields: [userId], references: [id])
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   email       String
   breachCount Int      @default(0)
@@ -113,24 +111,25 @@ model BreachCheck {
 }
 
 model MonitoredEmail {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   userId      String
-  user        User     @relation(fields: [userId], references: [id])
-  
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   email       String
-  isVerified  Boolean  @default(false)
+  isVerified  Boolean   @default(false)
   lastChecked DateTime?
-  breachCount Int      @default(0)
-  alertOn     Boolean  @default(true)
-  
-  addedAt     DateTime @default(now())
+  breachCount Int       @default(0)
+  breaches    Json?     // [{name, domain, breachDate, dataClasses}]
+  alertOn     Boolean   @default(true)
+
+  addedAt     DateTime  @default(now())
   @@unique([userId, email])
 }
 
 model Alert {
   id          String      @id @default(cuid())
   userId      String
-  user        User        @relation(fields: [userId], references: [id])
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   type        AlertType
   severity    Severity
@@ -163,7 +162,7 @@ model ApiKey {
   id        String   @id @default(cuid())
   userId    String   @unique
   user      User     @relation(fields: [userId], references: [id])
-  key       String   @unique @default(cuid())
+  key       String   @unique
   name      String   @default("XtraShield Agent Key")
   lastUsed  DateTime?
   createdAt DateTime @default(now())

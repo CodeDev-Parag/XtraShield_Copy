@@ -5,18 +5,14 @@ import { db } from "@/lib/db";
 export async function GET() {
   try {
     const session = await auth();
-    
     if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Query scan history from database
     const scans = await db.systemScan.findMany({
       where: { userId: session.user.id },
-      orderBy: { createdAt: "desc" }
+      orderBy: { createdAt: "desc" },
+      take: 100,
     });
 
     return NextResponse.json({ scans });

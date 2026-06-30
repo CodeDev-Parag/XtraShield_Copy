@@ -120,7 +120,7 @@ export default function SystemScannerPage() {
   };
 
   const handleCopyCommand = () => {
-    const cmd = `npx xtrasheild-agent --key ${apiKey}`;
+    const cmd = `npx xtrashield-scan --key ${apiKey}`;
     navigator.clipboard.writeText(cmd);
     setCopiedCommand(true);
     toast.success('CLI scan command copied.');
@@ -191,7 +191,7 @@ export default function SystemScannerPage() {
             </CardHeader>
             <CardContent className="space-y-3 text-xs">
               <div className="p-3 bg-[#F8F9FA] border border-black font-mono text-[11px] text-[#0A0A0A] select-all">
-                npm install -g xtrasheild-agent
+                npm install -g xtrashield-agent
               </div>
               <p className="text-[10px] text-[#4B5563] leading-relaxed font-mono">
                 Ensure Node.js v18+ is active. On Linux or macOS platforms, Administrator (`sudo`) bindings might be required for ports inspection.
@@ -262,7 +262,7 @@ export default function SystemScannerPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="relative p-3 bg-[#F8F9FA] border border-black font-mono text-[11px] text-[#0A0A0A] select-all pr-12 leading-relaxed">
-                npx xtrasheild-agent --key {apiKey.substring(0, 8)}...
+                npx xtrashield-scan --key {apiKey.substring(0, 8)}...
                 <Button
                   size="icon"
                   variant="ghost"

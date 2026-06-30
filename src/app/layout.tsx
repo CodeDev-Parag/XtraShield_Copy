@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Source_Code_Pro, IBM_Plex_Mono, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
+import { SessionProvider } from "next-auth/react";
+import QueryProvider from "@/components/providers/QueryProvider";
 import "./globals.css";
 
 const sourceCodePro = Source_Code_Pro({
@@ -38,7 +40,11 @@ export default function RootLayout({
       className={`${sourceCodePro.variable} ${ibmPlexMono.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground font-sans">
-        {children}
+        <SessionProvider>
+          <QueryProvider>
+            {children}
+          </QueryProvider>
+        </SessionProvider>
         <Toaster />
       </body>
     </html>

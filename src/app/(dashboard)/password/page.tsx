@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useSecurityStore } from '@/store/securityStore';
-import { usePersistedStore } from '@/store/usePersistedStore';
-import { 
+import {
   ShieldAlert, 
   ShieldCheck, 
   Copy, 
@@ -31,7 +30,7 @@ export default function PasswordGuardPage() {
   // Tab states: 'check' or 'generate'
   const [activeTab, setActiveTab] = useState<'check' | 'generate'>('check');
 
-  // HIBP Checker States
+  // Breach Checker States
   const [passwordToCheck, setPasswordToCheck] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
@@ -93,7 +92,7 @@ export default function PasswordGuardPage() {
 
   const checkStrength = getStrengthMetrics(passwordToCheck);
 
-  // Handle HIBP check
+  // Handle breach check
   const handleCheckPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!passwordToCheck) return;
@@ -106,7 +105,11 @@ export default function PasswordGuardPage() {
       const prefix = fullHash.substring(0, 5);
       const suffix = fullHash.substring(5);
 
-      const response = await fetch(`/api/breach/password?hashPrefix=${prefix}`);
+      const response = await fetch('/api/proxy/breach/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hashPrefix: prefix })
+      });
       
       if (!response.ok) {
         throw new Error('Failed to reach breach database API.');
@@ -154,7 +157,7 @@ export default function PasswordGuardPage() {
         breached: false,
         count: 0,
         strengthScore: checkStrength.score,
-        feedback: 'Error querying HIBP database. Standard strength rules still apply.'
+        feedback: 'Error querying breach database. Standard strength rules still apply.'
       });
     } finally {
       setIsChecking(false);
@@ -327,7 +330,7 @@ export default function PasswordGuardPage() {
                     <p className="mt-1.5 text-xs text-[#4B5563] font-mono font-medium leading-relaxed">
                       {checkResult.breached 
                         ? `This password has been exposed in database leaks ${checkResult.count.toLocaleString()} times. Do not use this password on any account!` 
-                        : 'This password was not found in any breached databases indexed by Have I Been Pwned. Good job!'}
+                        : 'This password was not found in any breached databases. Good job!'}
                     </p>
                   </div>
                 </div>

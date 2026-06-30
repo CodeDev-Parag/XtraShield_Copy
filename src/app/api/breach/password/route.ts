@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
 
     if (!response.ok) {
       return NextResponse.json(
-        { error: 'Failed to query PwnedPasswords API' },
+        { error: 'Failed to query breach password API' },
         { status: response.status }
       );
     }

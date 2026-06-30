@@ -1,80 +1,109 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useSecurityStore, MonitoredEmail } from '@/store/securityStore';
-import { usePersistedStore } from '@/store/usePersistedStore';
-import { 
-  Lock, 
-  Sparkles, 
-  Eye, 
-  ShieldAlert, 
-  ShieldCheck, 
-  AlertTriangle, 
-  Search, 
-  Clock, 
+import { useSession } from 'next-auth/react';
+import { useMonitoredEmails, type MonitoredEmailDTO } from '@/hooks/useMonitoredEmails';
+import {
+  Lock,
+  Sparkles,
+  Eye,
+  ShieldAlert,
+  ShieldCheck,
+  AlertTriangle,
+  Search,
+  Clock,
   RefreshCw,
   Server,
   Fingerprint
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function DarkWebMonitorPage() {
-  const userPlan = usePersistedStore(
-    useSecurityStore,
-    (state) => state.userPlan,
-    'FREE' as 'FREE' | 'PRO'
-  );
+  const { data: session, update: updateSession } = useSession();
+  const userPlan: 'FREE' | 'PRO' = session?.user?.plan === 'PRO' ? 'PRO' : 'FREE';
 
-  const monitoredEmails = usePersistedStore(
-    useSecurityStore,
-    (state) => state.monitoredEmails,
-    [] as MonitoredEmail[]
-  );
+  const { data: monitoredEmails = [], refetch: refetchEmails, isFetching } = useMonitoredEmails();
 
-  const { setPlan, addScan } = useSecurityStore();
+  const handleUpgrade = async () => {
+    // Phase 1: directly flip plan in DB via /api/user/upgrade (free, no Stripe).
+    // Phase 6 will swap this for Stripe Checkout.
+    try {
+      const res = await fetch('/api/user/upgrade', { method: 'POST' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? `Failed to upgrade (${res.status})`);
+      }
+      await updateSession();
+      toast.success('Upgraded to PRO. Dark Web Monitor unlocked.');
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Failed to upgrade.');
+    }
+  };
 
   const [isScanning, setIsScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState('');
   const [scanProgress, setScanProgress] = useState(0);
 
-  // Trigger dark web simulation scan
+  // Trigger dark web scan — re-runs breach check on every monitored email.
   const handleScanDarkWeb = async () => {
     if (isScanning) return;
+    if (monitoredEmails.length === 0) {
+      toast.warning('Add at least one email to your Watch List first.');
+      return;
+    }
+
     setIsScanning(true);
     setScanProgress(0);
 
     const steps = [
-      'Accessing darknet indexing nodes...',
-      'Searching onion threat forums...',
-      'Analyzing recent pastebin dumps...',
-      'Filtering leaked database credentials...',
-      'Dark Web monitoring completed.'
+      'Connecting to breach intelligence network...',
+      'Re-checking monitored emails against latest breach corpus...',
+      'Cross-referencing new leaks with your watch list...',
+      'Generating incident report...',
     ];
 
-    for (let i = 0; i < steps.length; i++) {
+    for (let i = 0; i < steps.length - 1; i++) {
       setScanMessage(steps[i]);
       setScanProgress(Math.round(((i + 1) / steps.length) * 100));
-      await new Promise(resolve => setTimeout(resolve, 800));
+      await new Promise((resolve) => setTimeout(resolve, 400));
     }
 
-    setIsScanning(false);
-    setScanMessage('');
+    setScanMessage('Re-scanning monitored emails...');
+    setScanProgress(80);
 
-    addScan({
-      type: 'email',
-      target: monitoredEmails[0]?.email || 'registered emails',
-      status: 'info',
-      details: 'Dark Web recursive search completed. No new active leak databases detected.'
-    });
-  };
+    const ids = monitoredEmails.map((m) => m.id);
+    const results = await Promise.allSettled(
+      ids.map((id) =>
+        fetch(`/api/monitored-emails/${id}`, { method: 'PUT' }).then((r) =>
+          r.ok ? r.json() : null
+        )
+      )
+    );
 
-  const handleUpgrade = () => {
-    setPlan('PRO');
-    addScan({
-      type: 'ssl',
-      target: 'Account Billing',
-      status: 'safe',
-      details: 'Subscribed to PRO tier. Secured credentials monitoring activated.'
-    });
+    let newAlerts = 0;
+    for (const r of results) {
+      if (
+        r.status === 'fulfilled' &&
+        r.value &&
+        typeof r.value.previousCount === 'number'
+      ) {
+        const next = r.value.email?.breachCount ?? r.value.previousCount;
+        if (next > r.value.previousCount) newAlerts++;
+      }
+    }
+
+    await refetchEmails();
+    setScanProgress(100);
+    setScanMessage(
+      newAlerts > 0
+        ? `Done. ${newAlerts} new breach(es) detected — see Alerts.`
+        : 'Done. No new breaches detected.'
+    );
+
+    setTimeout(() => {
+      setIsScanning(false);
+      setScanMessage('');
+    }, 1500);
   };
 
   return (
