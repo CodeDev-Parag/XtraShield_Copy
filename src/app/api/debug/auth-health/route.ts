@@ -6,68 +6,73 @@ export const runtime = "nodejs";
 export async function GET() {
   const results: Record<string, any> = {};
 
-  // 1. Check env vars
-  results.checks = {
-    trustHost: true,
-    hasSecret: !!process.env.AUTH_SECRET,
-    secretLength: process.env.AUTH_SECRET?.length ?? 0,
-    hasGoogle: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
-    googleClientIdLength: process.env.GOOGLE_CLIENT_ID?.length ?? 0,
-    googleClientSecretLength: process.env.GOOGLE_CLIENT_SECRET?.length ?? 0,
-  };
-
-  // 2. Test PrismaAdapter
   try {
-    const { PrismaAdapter } = await import("@auth/prisma-adapter");
-    const { db } = await import("@/lib/db");
-    const adapter = PrismaAdapter(db) as any;
-    const methods = adapter ? Object.keys(adapter).filter((k: string) => typeof adapter[k] === "function") : [];
-    results.adapter = { created: true, methodCount: methods.length, methods };
-  } catch (err: any) {
-    results.adapter = { error: String(err), stack: err?.stack?.substring(0, 500) };
-  }
-
-  // 3. Test Google provider
-  try {
-    const mod = await import("next-auth/providers/google");
-    const Google = mod.default;
-    const provider = Google({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    });
-    results.googleProvider = { id: provider.id, type: provider.type, issuer: provider.issuer };
-  } catch (err: any) {
-    results.googleProvider = { error: String(err), stack: err?.stack?.substring(0, 500) };
-  }
-
-  // 4. Test full auth initialization
-  try {
-    const { handlers } = await import("@/lib/auth");
-    results.handlers = { hasGET: typeof handlers.GET === "function", hasPOST: typeof handlers.POST === "function" };
-  } catch (err: any) {
-    results.fullInit = { error: String(err), stack: err?.stack?.substring(0, 500) };
-  }
-
-  // 5. Simulate Google sign-in request to capture the real error
-  try {
+    // 1. Direct test of the full auth flow with error capture
+    const authModule = await import("@/lib/auth");
     const { NextRequest } = await import("next/server");
-    const { handlers } = await import("@/lib/auth");
-    const req = new NextRequest("https://xtrashield-seven.vercel.app/api/auth/signin/google", { method: "GET" });
-    const response = await handlers.GET!(req);
-    const location = response?.headers?.get("location") ?? "no redirect";
-    results.simulatedSignIn = {
+
+    const req = new NextRequest(
+      "https://xtrashield-seven.vercel.app/api/auth/signin/google",
+      { method: "GET" }
+    );
+
+    const response = await authModule.handlers.GET!(req);
+    const location = response?.headers?.get("location") ?? "none";
+
+    results.signin = {
       status: response?.status,
-      redirectUrl: location.substring(0, 300),
-      hasError: location.includes("error="),
+      location: location.substring(0, 400),
     };
-    if (location.includes("error=")) {
-      const errorParam = new URL(location).searchParams.get("error");
-      const errorDescription = new URL(location).searchParams.get("error_description");
-      results.simulatedSignIn.errorCode = errorParam;
-      results.simulatedSignIn.errorDescription = errorDescription;
+
+    // 2. Also try the POST handler to see if it gives different errors
+    const postReq = new NextRequest(
+      "https://xtrashield-seven.vercel.app/api/auth/signin/google",
+      { method: "POST", body: new URLSearchParams({}) }
+    );
+
+    try {
+      const postResponse = await authModule.handlers.POST!(postReq);
+      const postLocation = postResponse?.headers?.get("location") ?? "none";
+      results.signinPost = {
+        status: postResponse?.status,
+        location: postLocation.substring(0, 400),
+      };
+    } catch (err: any) {
+      results.signinPost = { error: err?.message, stack: err?.stack?.substring(0, 500) };
     }
+
+    // 3. Try the CSRF endpoint (usually the first thing auth does)
+    const csrfReq = new NextRequest(
+      "https://xtrashield-seven.vercel.app/api/auth/csrf",
+      { method: "GET" }
+    );
+    try {
+      const csrfResp = await authModule.handlers.GET!(csrfReq);
+      const csrfBody = await csrfResp?.text();
+      results.csrf = { status: csrfResp?.status, body: csrfBody?.substring(0, 200) };
+    } catch (err: any) {
+      results.csrf = { error: err?.message, stack: err?.stack?.substring(0, 500) };
+    }
+
+    // 4. Check session
+    const sessionReq = new NextRequest(
+      "https://xtrashield-seven.vercel.app/api/auth/session",
+      { method: "GET" }
+    );
+    try {
+      const sessionResp = await authModule.handlers.GET!(sessionReq);
+      const sessionBody = await sessionResp?.text();
+      results.session = { status: sessionResp?.status, body: sessionBody?.substring(0, 200) };
+    } catch (err: any) {
+      results.session = { error: err?.message, stack: err?.stack?.substring(0, 500) };
+    }
+
   } catch (err: any) {
-    results.simulatedSignIn = { error: String(err), stack: err?.stack?.substring(0, 500) };
+    results.fatalError = {
+      error: err?.message,
+      name: err?.name,
+      stack: err?.stack?.substring(0, 800),
+    };
   }
 
   return NextResponse.json(results);
