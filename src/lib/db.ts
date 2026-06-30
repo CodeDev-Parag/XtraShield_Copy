@@ -9,14 +9,12 @@ function createPrismaClient() {
   const tursoToken = process.env.TURSO_AUTH_TOKEN;
 
   if (tursoUrl && tursoToken) {
-    // eslint-disable-next-line no-eval
-    const { PrismaLibSql } = eval('require')('@prisma/adapter-libsql');
+    const { PrismaLibSql } = require('@prisma/adapter-libsql');
     const adapter = new PrismaLibSql({ url: tursoUrl, authToken: tursoToken });
     return new PrismaClient({ adapter });
   }
 
-  // Local SQLite fallback — hidden from Turbopack
-  // eslint-disable-next-line no-eval
+  // Dev only: local SQLite — hidden from Turbopack bundler
   const { PrismaBetterSqlite3 } = eval('require')('@prisma/adapter-better-sqlite3');
   const path = require('path');
   let raw = process.env.DATABASE_URL || 'file:./prisma/dev.db';
