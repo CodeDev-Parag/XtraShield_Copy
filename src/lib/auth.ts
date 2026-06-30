@@ -26,16 +26,12 @@ const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
-  adapter: PrismaAdapter(db),
+  adapter: PrismaAdapter(db) as any,
   providers: [
-    ...(googleClientId && googleClientSecret
-      ? [
-          Google({
-            clientId: googleClientId,
-            clientSecret: googleClientSecret,
-          }),
-        ]
-      : []),
+    Google({
+      clientId: googleClientId!,
+      clientSecret: googleClientSecret!,
+    }),
     Credentials({
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
@@ -59,4 +55,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
+  experimental: {
+    enableWebAuthn: false,
+  },
 });
