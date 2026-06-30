@@ -55,4 +55,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
+  logger: {
+    error(error) {
+      console.error("[NEXTAUTH-ERROR]", JSON.stringify(error, Object.getOwnPropertyNames(error)));
+    },
+    warn(code) {
+      console.warn("[NEXTAUTH-WARN]", code);
+    },
+    debug() {},
+  },
 });
