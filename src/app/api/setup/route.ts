@@ -22,7 +22,11 @@ export async function POST() {
         "image" TEXT,
         "plan" TEXT NOT NULL DEFAULT 'FREE',
         "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" DATETIME NOT NULL
+        "updatedAt" DATETIME NOT NULL,
+        "stripeCustomerId" TEXT,
+        "stripeSubscriptionId" TEXT,
+        "stripePriceId" TEXT,
+        "stripeCurrentPeriodEnd" DATETIME
       );
     `);
 
@@ -143,6 +147,31 @@ export async function POST() {
     await db.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "MonitoredEmail_userId_email_key" ON "MonitoredEmail"("userId", "email")`);
     await db.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "ApiKey_userId_key" ON "ApiKey"("userId")`);
     await db.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "ApiKey_key_key" ON "ApiKey"("key")`);
+
+    // Add Stripe columns if migrating from older schema
+    const userColumns = await db.$queryRawUnsafe<{name: string}[]>(
+      `PRAGMA table_info("User")`
+    );
+    const columnNames = new Set(userColumns.map((c) => c.name));
+    const stripeColumns = [
+      "stripeCustomerId",
+      "stripeSubscriptionId",
+      "stripePriceId",
+      "stripeCurrentPeriodEnd",
+    ];
+    for (const col of stripeColumns) {
+      if (!columnNames.has(col)) {
+        await db.$executeRawUnsafe(
+          `ALTER TABLE "User" ADD COLUMN "${col}" TEXT`
+        );
+      }
+    }
+    await db.$executeRawUnsafe(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "User_stripeCustomerId_key" ON "User"("stripeCustomerId") WHERE "stripeCustomerId" IS NOT NULL`
+    );
+    await db.$executeRawUnsafe(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "User_stripeSubscriptionId_key" ON "User"("stripeSubscriptionId") WHERE "stripeSubscriptionId" IS NOT NULL`
+    );
 
     return NextResponse.json({ message: "Database tables created successfully." });
   } catch (error: any) {

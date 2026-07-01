@@ -45,6 +45,8 @@ export default function EmailCheckerPage() {
     breached: boolean;
     breaches: any[];
     isMock: boolean;
+    configured: boolean;
+    message?: string;
   } | null>(null);
   const [error, setError] = useState('');
 
@@ -74,7 +76,9 @@ export default function EmailCheckerPage() {
         email: emailInput.trim(),
         breached: hasBreaches,
         breaches: data.breaches ?? [],
-        isMock: data.isMock,
+        isMock: !!data.isMock,
+        configured: data.configured !== false,
+        message: data.message,
       });
     } catch (err: any) {
       console.error(err);
@@ -140,55 +144,71 @@ export default function EmailCheckerPage() {
 
           {scanResult && (
             <div className="space-y-6">
-              <div
-                className={`border p-6 ${
-                  scanResult.breached
-                    ? 'bg-white border-[#DC2626]'
-                    : 'bg-white border-[#16A34A]'
-                }`}
-              >
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              {!scanResult.configured ? (
+                <div className="border border-[#EAB308] bg-[#FEFCE8] p-6">
                   <div className="flex items-start">
-                    {scanResult.breached ? (
-                      <ShieldAlert className="w-8 h-8 text-[#DC2626] mr-4 mt-1 shrink-0" />
-                    ) : (
-                      <ShieldCheck className="w-8 h-8 text-[#16A34A] mr-4 mt-1 shrink-0" />
-                    )}
+                    <AlertTriangle className="w-7 h-7 text-[#EAB308] mr-4 mt-0.5 shrink-0" />
                     <div>
-                      <h3 className="text-lg font-heading font-extrabold text-[#0A0A0A] uppercase tracking-tight">
-                        {scanResult.breached
-                          ? `EXPOSURE DETECTED: ${scanResult.breaches.length} BREACHES`
-                          : 'EMAIL IS SECURE'}
+                      <h3 className="text-base font-heading font-extrabold uppercase tracking-tight text-[#0A0A0A]">
+                        EMAIL LOOKUP NOT CONFIGURED
                       </h3>
-                      <p className="text-xs text-[#4B5563] mt-1.5 font-medium leading-relaxed font-mono">
-                        {scanResult.breached
-                          ? 'This email was found in the data leaks detailed below. We recommend changing passwords immediately.'
-                          : 'No known data breaches found. Secure your account by turning on active monitoring.'}
+                      <p className="text-xs text-[#4B5563] mt-1.5 leading-relaxed font-mono">
+                        {scanResult.message ||
+                          "Email breach data is not available on this server."}
                       </p>
-                      {scanResult.isMock && (
-                        <span className="inline-block mt-3 bg-[#F3F4F6] text-[9px] font-mono text-[#4B5563] px-2 py-0.5 border border-black">
-                          Demo Data (No API Key Configured)
-                        </span>
-                      )}
+                      <p className="text-[11px] text-[#4B5563] mt-3 font-mono">
+                        Add a <code className="bg-white border border-black px-1">HIBP_API_KEY</code>{" "}
+                        environment variable (server-side) to enable real breach lookups.
+                      </p>
                     </div>
                   </div>
-
-                  {!monitoredEmails.some(
-                    (m) => m.email.toLowerCase() === scanResult.email.toLowerCase()
-                  ) && (
-                    <button
-                      onClick={() => handleAddToMonitor(scanResult.email, scanResult.breaches)}
-                      disabled={addMutation.isPending}
-                      className="bg-white hover:bg-gray-100 text-[#0A0A0A] border border-black font-bold py-2 px-4 text-xs transition-colors self-start md:self-center cursor-pointer font-heading uppercase tracking-widest hover:shadow-[4px_4px_0px_rgba(0,0,0,1)] transition-shadow duration-100 disabled:opacity-50"
-                      data-testid="add-to-watchlist-button"
-                    >
-                      {addMutation.isPending ? 'ADDING...' : 'ADD TO WATCH LIST'}
-                    </button>
-                  )}
                 </div>
-              </div>
+              ) : (
+                <div
+                  className={`border p-6 ${
+                    scanResult.breached
+                      ? 'bg-white border-[#DC2626]'
+                      : 'bg-white border-[#16A34A]'
+                  }`}
+                >
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-start">
+                      {scanResult.breached ? (
+                        <ShieldAlert className="w-8 h-8 text-[#DC2626] mr-4 mt-1 shrink-0" />
+                      ) : (
+                        <ShieldCheck className="w-8 h-8 text-[#16A34A] mr-4 mt-1 shrink-0" />
+                      )}
+                      <div>
+                        <h3 className="text-lg font-heading font-extrabold text-[#0A0A0A] uppercase tracking-tight">
+                          {scanResult.breached
+                            ? `EXPOSURE DETECTED: ${scanResult.breaches.length} BREACHES`
+                            : 'EMAIL IS SECURE'}
+                        </h3>
+                        <p className="text-xs text-[#4B5563] mt-1.5 font-medium leading-relaxed font-mono">
+                          {scanResult.breached
+                            ? 'This email was found in the data leaks detailed below. We recommend changing passwords immediately.'
+                            : 'No known data breaches found. Secure your account by turning on active monitoring.'}
+                        </p>
+                      </div>
+                    </div>
 
-              {scanResult.breached && (
+                    {!monitoredEmails.some(
+                      (m) => m.email.toLowerCase() === scanResult.email.toLowerCase()
+                    ) && (
+                      <button
+                        onClick={() => handleAddToMonitor(scanResult.email, scanResult.breaches)}
+                        disabled={addMutation.isPending}
+                        className="bg-white hover:bg-gray-100 text-[#0A0A0A] border border-black font-bold py-2 px-4 text-xs transition-colors self-start md:self-center cursor-pointer font-heading uppercase tracking-widest hover:shadow-[4px_4px_0px_rgba(0,0,0,1)] transition-shadow duration-100 disabled:opacity-50"
+                        data-testid="add-to-watchlist-button"
+                      >
+                        {addMutation.isPending ? 'ADDING...' : 'ADD TO WATCH LIST'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {scanResult.breached && scanResult.configured && (
                 <div className="space-y-4">
                   <h4 className="text-xs font-mono font-bold text-[#4B5563] uppercase tracking-widest">BREACH DETAILS</h4>
                   {scanResult.breaches.map((breach: any, idx: number) => (

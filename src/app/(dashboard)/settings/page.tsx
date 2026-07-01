@@ -46,22 +46,24 @@ export default function SettingsPage() {
   };
 
   /**
-   * Flip plan in DB via /api/user/upgrade.
-   * Phase 6 replaces this with a Stripe Checkout redirect.
+   * Trigger Stripe Checkout for the PRO plan.
+   * On success, Stripe redirects back to /billing/success and the webhook
+   * flips the user's plan to PRO.
    */
   const handleUpgrade = async () => {
     setBusy(true);
     try {
-      const res = await fetch('/api/user/upgrade', { method: 'POST' });
+      const res = await fetch('/api/stripe/checkout', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? `Failed to upgrade (${res.status})`);
       }
-      await updateSession();
-      toast.success('Upgraded to PRO.');
+      if (!data.url) {
+        throw new Error('Stripe did not return a checkout URL.');
+      }
+      window.location.href = data.url;
     } catch (err: any) {
-      toast.error(err?.message ?? 'Failed to upgrade.');
-    } finally {
+      toast.error(err?.message ?? 'Failed to start checkout.');
       setBusy(false);
     }
   };
@@ -69,15 +71,17 @@ export default function SettingsPage() {
   const handleCancelPlan = async () => {
     setBusy(true);
     try {
-      const res = await fetch('/api/user/upgrade', { method: 'DELETE' });
+      const res = await fetch('/api/stripe/portal', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? `Failed to cancel (${res.status})`);
+        throw new Error(data.error ?? `Failed to open billing portal (${res.status})`);
       }
-      await updateSession();
-      toast.success('Subscription returned to FREE.');
+      if (!data.url) {
+        throw new Error('Stripe did not return a billing portal URL.');
+      }
+      window.location.href = data.url;
     } catch (err: any) {
-      toast.error(err?.message ?? 'Failed to cancel subscription.');
+      toast.error(err?.message ?? 'Failed to open billing portal.');
     } finally {
       setBusy(false);
     }

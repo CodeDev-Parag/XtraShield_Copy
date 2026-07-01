@@ -25,18 +25,18 @@ export default function DarkWebMonitorPage() {
   const { data: monitoredEmails = [], refetch: refetchEmails, isFetching } = useMonitoredEmails();
 
   const handleUpgrade = async () => {
-    // Phase 1: directly flip plan in DB via /api/user/upgrade (free, no Stripe).
-    // Phase 6 will swap this for Stripe Checkout.
     try {
-      const res = await fetch('/api/user/upgrade', { method: 'POST' });
+      const res = await fetch('/api/stripe/checkout', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? `Failed to upgrade (${res.status})`);
       }
-      await updateSession();
-      toast.success('Upgraded to PRO. Dark Web Monitor unlocked.');
+      if (!data.url) {
+        throw new Error('Stripe did not return a checkout URL.');
+      }
+      window.location.href = data.url;
     } catch (err: any) {
-      toast.error(err?.message ?? 'Failed to upgrade.');
+      toast.error(err?.message ?? 'Failed to start checkout.');
     }
   };
 
@@ -160,7 +160,7 @@ export default function DarkWebMonitorPage() {
                 className="w-full py-3 text-sm font-heading font-bold bg-black text-white hover:bg-[#16A34A] hover:text-white uppercase tracking-widest border border-black rounded-none transition-colors duration-100 cursor-pointer flex items-center justify-center gap-2"
               >
                 <Sparkles className="w-4 h-4 text-white" />
-                Upgrade to PRO (Simulated Checkout)
+                Upgrade to PRO ($9/month)
               </button>
             </div>
           </div>

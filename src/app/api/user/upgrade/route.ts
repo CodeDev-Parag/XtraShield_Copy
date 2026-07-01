@@ -1,61 +1,42 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
 
 /**
- * POST /api/user/upgrade
+ * GET/POST /api/user/upgrade — legacy placeholder.
  *
- * Phase 1: directly flip the user's plan to PRO in the DB. No Stripe, no email.
- * Phase 6 will swap this for a Stripe Checkout redirect — at that point this
- * route will become a webhook receiver only and the button in the UI will
- * redirect to /api/stripe/checkout.
+ * Now that Stripe Checkout drives upgrades, this endpoint only exists for
+ * backward compatibility. It simply 302s to /api/stripe/checkout which either
+ * makes the user a Stripe customer or returns 503 if Stripe isn't configured.
+ * The settings page now calls /api/stripe/checkout directly.
  */
-export async function POST() {
-  try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const updated = await db.user.update({
-      where: { id: session.user.id },
-      data: { plan: "PRO" },
-      select: { id: true, plan: true },
-    });
-
-    return NextResponse.json({ user: updated });
-  } catch (error) {
-    console.error("Failed to upgrade user:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+export async function POST(req: Request) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const origin =
+    req.headers.get("origin") ??
+    process.env.NEXTAUTH_URL ??
+    "http://localhost:3000";
+
+  // Forward to checkout endpoint via internal call would be cleanest, but
+  // simpler to 302 to a server-side redirect.
+  return NextResponse.redirect(new URL("/api/stripe/checkout", origin), {
+    status: 307,
+  });
 }
 
 /**
- * POST /api/user/upgrade/downgrade — companion route to let the seeded admin
- * roll back to FREE without going through DB tooling.
+ * DELETE — previously triggered downgrade. Now handled via Stripe Billing
+ * Portal so the subscription state changes only when Stripe confirms it.
  */
 export async function DELETE() {
-  try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const updated = await db.user.update({
-      where: { id: session.user.id },
-      data: { plan: "FREE" },
-      select: { id: true, plan: true },
-    });
-
-    return NextResponse.json({ user: updated });
-  } catch (error) {
-    console.error("Failed to downgrade user:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json(
+    {
+      error:
+        "Downgrade is now handled via the Stripe Billing Portal. Open your subscription settings to cancel.",
+    },
+    { status: 410 } // 410 Gone
+  );
 }

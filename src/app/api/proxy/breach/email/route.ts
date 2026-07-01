@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Use server's HIBP key (no user-provided key)
-    const { breaches, isMock } = await scanEmailBreaches(email);
+    const result = await scanEmailBreaches(email);
 
     // Persist BreachCheck row
     try {
@@ -58,18 +58,17 @@ export async function POST(req: NextRequest) {
         data: {
           userId: session.user.id,
           email: email.toLowerCase(),
-          breachCount: breaches.length,
-          breaches: JSON.stringify(breaches),
+          breachCount: result.breaches.length,
+          breaches: JSON.stringify(result.breaches),
         },
       });
     } catch (dbError) {
       console.error("Failed to persist BreachCheck:", dbError);
     }
 
-    return NextResponse.json(
-      { breaches, isMock },
-      { headers: getRateLimitHeaders(rateLimit) }
-    );
+    return NextResponse.json(result, {
+      headers: getRateLimitHeaders(rateLimit),
+    });
   } catch (error: any) {
     console.error("Proxy breach email error:", error);
     return NextResponse.json(
