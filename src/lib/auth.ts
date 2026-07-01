@@ -26,7 +26,8 @@ const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
-  // adapter removed temporarily for testing
+  basePath: "/api/auth",
+  adapter: PrismaAdapter(db),
   providers: [
     Google({
       clientId: googleClientId!,
