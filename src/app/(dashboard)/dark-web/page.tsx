@@ -25,19 +25,9 @@ export default function DarkWebMonitorPage() {
   const { data: monitoredEmails = [], refetch: refetchEmails, isFetching } = useMonitoredEmails();
 
   const handleUpgrade = async () => {
-    try {
-      const res = await fetch('/api/stripe/checkout', { method: 'POST' });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.error ?? `Failed to upgrade (${res.status})`);
-      }
-      if (!data.url) {
-        throw new Error('Stripe did not return a checkout URL.');
-      }
-      window.location.href = data.url;
-    } catch (err: any) {
-      toast.error(err?.message ?? 'Failed to start checkout.');
-    }
+    toast.error(
+      "PRO upgrade is currently invite-only in India while the payments provider is being onboarded. Apply for an invite and we'll notify you when it opens."
+    );
   };
 
   const [isScanning, setIsScanning] = useState(false);
@@ -156,12 +146,17 @@ export default function DarkWebMonitorPage() {
             <div className="pt-2">
               <button
                 onClick={handleUpgrade}
+                disabled
                 data-testid="upgrade-pro-button"
-                className="w-full py-3 text-sm font-heading font-bold bg-black text-white hover:bg-[#16A34A] hover:text-white uppercase tracking-widest border border-black rounded-none transition-colors duration-100 cursor-pointer flex items-center justify-center gap-2"
+                className="w-full py-3 text-sm font-heading font-bold bg-black text-white uppercase tracking-widest border border-black rounded-none flex items-center justify-center gap-2 opacity-50 cursor-not-allowed"
               >
                 <Sparkles className="w-4 h-4 text-white" />
                 Upgrade to PRO ($9/month)
               </button>
+              <p className="mt-3 text-[10px] text-[#4B5563] font-mono leading-relaxed">
+                Billing is invite-only for accounts in India at the moment.
+                Status updates will appear here once onboarding is complete.
+              </p>
             </div>
           </div>
         </div>

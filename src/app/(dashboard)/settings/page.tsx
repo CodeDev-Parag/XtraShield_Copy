@@ -46,45 +46,19 @@ export default function SettingsPage() {
   };
 
   /**
-   * Trigger Stripe Checkout for the PRO plan.
-   * On success, Stripe redirects back to /billing/success and the webhook
-   * flips the user's plan to PRO.
+   * Stripe checkout is not available in India yet (invitation-only).
+   * Show a clear notice instead of redirecting to a checkout that never opens.
    */
   const handleUpgrade = async () => {
-    setBusy(true);
-    try {
-      const res = await fetch('/api/stripe/checkout', { method: 'POST' });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.error ?? `Failed to upgrade (${res.status})`);
-      }
-      if (!data.url) {
-        throw new Error('Stripe did not return a checkout URL.');
-      }
-      window.location.href = data.url;
-    } catch (err: any) {
-      toast.error(err?.message ?? 'Failed to start checkout.');
-      setBusy(false);
-    }
+    toast.error(
+      "Stripe checkout is currently invite-only in India. We are awaiting onboarding approval — until then, the PRO upgrade is unavailable."
+    );
   };
 
   const handleCancelPlan = async () => {
-    setBusy(true);
-    try {
-      const res = await fetch('/api/stripe/portal', { method: 'POST' });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.error ?? `Failed to open billing portal (${res.status})`);
-      }
-      if (!data.url) {
-        throw new Error('Stripe did not return a billing portal URL.');
-      }
-      window.location.href = data.url;
-    } catch (err: any) {
-      toast.error(err?.message ?? 'Failed to open billing portal.');
-    } finally {
-      setBusy(false);
-    }
+    toast.error(
+      "Subscription management is unavailable while Stripe onboarding is pending."
+    );
   };
 
   return (
@@ -216,27 +190,44 @@ export default function SettingsPage() {
               )}
             </div>
 
-            <div className="pt-2">
+            <div className="bg-[#FEFCE8] border border-[#EAB308] p-3 text-[10px] font-mono text-[#4B5563] leading-relaxed">
+              <strong className="block text-[#0A0A0A] uppercase tracking-widest mb-1">
+                Billing temporarily unavailable
+              </strong>
+              The global payments provider backing PRO subscription is currently
+              invitation-only for accounts based in India. To get early access,
+              apply for an invite and you&rsquo;ll be notified when onboarding opens.
+            </div>
+
+            <div className="pt-2 space-y-2">
               {currentPlan === 'PRO' ? (
                 <button
                   onClick={handleCancelPlan}
-                  disabled={busy}
+                  disabled
                   data-testid="cancel-subscription-button"
-                  className="w-full py-2.5 bg-white hover:bg-[#FEE2E2] hover:text-[#DC2626] border border-black rounded-none text-xs font-heading font-bold transition-colors duration-100 cursor-pointer uppercase tracking-widest disabled:opacity-50"
+                  className="w-full py-2.5 bg-white border border-black rounded-none text-xs font-heading font-bold uppercase tracking-widest opacity-50 cursor-not-allowed"
                 >
-                  {busy ? 'PROCESSING…' : 'Cancel PRO Subscription'}
+                  Cancel PRO Subscription
                 </button>
               ) : (
                 <button
                   onClick={handleUpgrade}
-                  disabled={busy}
+                  disabled
                   data-testid="upgrade-pro-button"
-                  className="w-full py-3 bg-black hover:bg-[#16A34A] text-white font-heading font-bold text-xs rounded-none transition-colors duration-100 flex items-center justify-center cursor-pointer gap-2 border border-black uppercase tracking-widest hover:shadow-[4px_4px_0px_rgba(0,0,0,1)] disabled:opacity-50"
+                  className="w-full py-3 bg-black text-white font-heading font-bold text-xs rounded-none flex items-center justify-center gap-2 border border-black uppercase tracking-widest opacity-50 cursor-not-allowed"
                 >
                   <Sparkles className="w-4 h-4 text-white" />
-                  {busy ? 'PROCESSING…' : 'Upgrade to PRO ($9/month)'}
+                  Upgrade to PRO ($9/month)
                 </button>
               )}
+              <a
+                href="https://dashboard.stripe.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full py-2 bg-white hover:bg-[#F3F4F6] text-[#0A0A0A] border border-black font-bold tracking-widest text-[10px] uppercase text-center transition-colors"
+              >
+                Apply for Invite &rarr;
+              </a>
             </div>
           </div>
 
